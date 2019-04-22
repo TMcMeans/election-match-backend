@@ -24,14 +24,17 @@ app.use(express.static(path.join(__dirname, 'public')));
 //Post ocd_id to proxy server
 app.post('/api/search', (req, res) => {
   app.locals.ocd_id = req.body.ocd_id;
+  console.log(app.locals);
   // res.sendStatus(202);
   res.end();
 });
 
 //Use proxy server to make external GET request to DemWorks API and send returned data back
-app.get('/api/elections', async (req, res) => {
+app.get('/api/elections/:ocd_id', async (req, res) => {
   try {
-    const url = app.locals.ocd_id;
+    const url = `https://api.turbovote.org/elections/upcoming?district-divisions=${encodeURIComponent(
+      req.params.ocd_id
+    )}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -41,6 +44,34 @@ app.get('/api/elections', async (req, res) => {
 
     const data = await response.json();
     res.send(data);
+  } catch (error) {
+    console.log(error);
+  }
+  res.end();
+});
+
+const returnOCD_IDs = data => {
+  let divisions = Object.keys(data.divisions);
+  divisions.forEach(ocd_id => {
+    let aka = data.divisions[ocd_id].alsoKnownAs;
+    if (aka) {
+      divisions = [...divisions, ...aka];
+    }
+  });
+
+  return divisions;
+};
+
+app.get('/api/ocd_id/:address', async (req, res) => {
+  const api_key = 'AIzaSyBUzALt9JiIgS3sJPgUwEP__B16u0Gglus';
+  const encodedAddress = encodeURIComponent(req.params.address);
+  const url = `https://www.googleapis.com/civicinfo/v2/representatives?address=${encodedAddress}&key=${api_key}`;
+
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+
+    res.send(returnOCD_IDs(data));
   } catch (error) {
     console.log(error);
   }
